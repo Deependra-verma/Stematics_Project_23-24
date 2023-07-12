@@ -1,0 +1,268 @@
+import tensorflow as tf
+from tensorflow.keras import datasets
+
+(X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar100.load_data(label_mode='coarse')
+print(X_train.shape)
+print(y_train.shape)
+print(X_test.shape)
+print(y_test.shape)
+
+import numpy as np
+np.unique(y_train)
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(5,5))
+for i in range(25):
+    plt.subplot(5,5,i+1)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(X_train[i])
+    plt.xlabel(y_train[i][0])
+plt.show()
+
+plt.figure(figsize=(5,5))
+for i in range(25):
+    plt.subplot(5,5,i+1)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(X_test[i])
+    plt.xlabel(y_test[i][0])
+plt.show()
+
+x_train=X_train/255.0
+x_test=X_test/255.0
+
+from tensorflow.keras import layers,models
+
+model = models.Sequential()
+model.add(layers.Conv2D(6, (5, 5), activation='relu', input_shape=(32, 32, 3)))
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(16, (5, 5), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Flatten())
+model.add(layers.Dense(120, activation='relu'))
+model.add(layers.Dense(84, activation='relu'))
+model.add(layers.Dense(20))
+model.summary()
+
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+%time history = model.fit(x_train, y_train, epochs=10)
+
+plt.plot(history.history['accuracy'], label='accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim([0, 1])
+plt.legend(loc='lower right')
+
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=2)
+print(test_acc)
+
+
+
+Solution 2
+model = tf.keras.models.Sequential()
+
+model.add(tf.keras.layers.Conv2D(64, (3, 3), padding='same', input_shape=(32,32,3)))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(64, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+model.add(tf.keras.layers.Conv2D(128, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(128, (3, 3), padding='same'))
+model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+model.add(tf.keras.layers.BatchNormalization())
+model.add(tf.keras.layers.Activation('relu'))
+model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+
+# Final layers
+model.add(tf.keras.layers.Flatten())
+model.add(tf.keras.layers.Dense(4096))
+model.add(tf.keras.layers.Dense(1000))
+model.add(tf.keras.layers.Dense(20))
+
+model.summary()
+
+model.compile(optimizer='adam',
+          loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+          metrics=['accuracy'])
+
+model.fit(x_train,y_train, epochs=10)
+
+model.evaluate(x_test,y_test)
+
+
+
+
+Solution 3
+
+import matplotlib.pyplot as plt
+plt.subplot(121)
+plt.xticks([])
+plt.yticks([])
+plt.grid(False)
+plt.imshow(X_train[0])
+
+from PIL import Image
+import numpy as np
+pil_image = Image.fromarray(X_train[0])
+pil_image = np.array(pil_image.resize((224,224)))
+plt.subplot(122)
+plt.xticks([])
+plt.yticks([])
+plt.grid(False)
+plt.imshow(pil_image)
+
+try:
+    tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+    print('Device:', tpu.master())
+    tf.config.experimental_connect_to_cluster(tpu)
+    tf.tpu.experimental.initialize_tpu_system(tpu)
+    strategy = tf.distribute.experimental.TPUStrategy(tpu)
+except:
+    strategy = tf.distribute.get_strategy()
+print('Number of replicas:', strategy.num_replicas_in_sync)
+
+with strategy.scope():
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.InputLayer(input_shape=(32,32,3)))
+  model.add(tf.keras.layers.Resizing(224,224))
+  model.add(tf.keras.layers.Rescaling(scale=1./255))
+  model.add(tf.keras.layers.Conv2D(64, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(64, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+  model.add(tf.keras.layers.Conv2D(128, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(128, (3, 3), padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+  model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(256, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.Conv2D(512, (3, 3), padding='same'))
+  model.add(tf.keras.layers.BatchNormalization())
+  model.add(tf.keras.layers.Activation('relu'))
+  model.add(tf.keras.layers.MaxPooling2D((2, 2), strides=(2, 2)))
+
+  # Final layers
+  model.add(tf.keras.layers.Flatten())
+  model.add(tf.keras.layers.Dense(1000))
+  model.add(tf.keras.layers.Dense(256))
+  model.add(tf.keras.layers.Dense(20))
+
+model.summary()
+
+with strategy.scope():
+  model.compile(optimizer='adam',
+          loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+          metrics=['accuracy'])
+  model.fit(X_train,y_train,epochs=5)
+
+with strategy.scope():
+  model.evaluate(x_test,y_test)
+
+
+
+Solution 4
+import tensorflow as tf
+from tensorflow.keras import datasets
+(X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar100.load_data(label_mode='coarse')
+
+try:
+    tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+    print('Device:', tpu.master())
+    tf.config.experimental_connect_to_cluster(tpu)
+    tf.tpu.experimental.initialize_tpu_system(tpu)
+    strategy = tf.distribute.experimental.TPUStrategy(tpu)
+except:
+    strategy = tf.distribute.get_strategy()
+print('Number of replicas:', strategy.num_replicas_in_sync)
+
+with strategy.scope():
+  preprocess_input = tf.keras.applications.inception_v3.preprocess_input
+  x_train = preprocess_input(X_train)
+  x_test = preprocess_input(X_test)
+
+with strategy.scope():
+  base_model = tf.keras.applications.InceptionV3(input_shape=(299,299,3),include_top=False,weights='imagenet')
+  base_model.trainable = False
+
+base_model.summary()
+
+with strategy.scope():
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.InputLayer(input_shape=(32,32,3)))
+  model.add(tf.keras.layers.Resizing(299,299))
+  model.add(base_model)
+  model.add(tf.keras.layers.GlobalAveragePooling2D())
+  model.add(tf.keras.layers.Dense(20))
+  model.summary()
+
+with strategy.scope():
+  model.compile(optimizer='adam',
+          loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+          metrics=['accuracy'])
+  model.fit(x_train,y_train,epochs=5)
+
+with strategy.scope():
+  model.evaluate(x_test,y_test)

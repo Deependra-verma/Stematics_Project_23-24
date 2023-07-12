@@ -1,0 +1,413 @@
+Solution 1
+import numpy as np
+import pandas as pd
+df = pd.read_csv("/content/diabetes_classification.csv")
+df.head()
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(14,6))
+plt.subplot(1,2,1)
+plt.hist(df['glucose'])
+plt.subplot(1,2,2)
+plt.hist(df['bloodpressure'])
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(df.drop('diabetes',axis=1), df['diabetes'])
+
+from sklearn.naive_bayes import GaussianNB
+clf = GaussianNB()
+clf.fit(X_train,y_train)
+pred = clf.predict(X_test)
+
+from sklearn.metrics import accuracy_score
+print(accuracy_score(y_test,pred))
+
+def calculate_prior(df, Y):
+    classes = sorted(list(df[Y].unique()))
+    prior = []
+    for i in classes:
+        prior.append(len(df[df[Y]==i])/len(df))
+    return prior
+
+def calculate_likelihood_categorical(df, feat_name, feat_val, Y, label):
+    feat = list(df.columns)
+    df = df[df[Y]==label]
+    p_x_given_y = len(df[df[feat_name]==feat_val]) / len(df)
+    return p_x_given_y
+
+def naive_bayes_categorical(df, X, Y):
+    # get feature names
+    features = list(df.columns)[:-1]
+
+    # calculate prior
+    prior = calculate_prior(df, Y)
+
+    Y_pred = []
+    # loop over every data sample
+    for x in X:
+        # calculate likelihood
+        labels = sorted(list(df[Y].unique()))
+        likelihood = [1]*len(labels)
+        for j in range(len(labels)):
+            for i in range(len(features)):
+                likelihood[j] *= calculate_likelihood_categorical(df, features[i], x[i], Y, labels[j])
+
+        # calculate posterior probability (numerator only)
+        post_prob = [1]*len(labels)
+        for j in range(len(labels)):
+            post_prob[j] = likelihood[j] * prior[j]
+
+        Y_pred.append(np.argmax(post_prob))
+
+    return np.array(Y_pred)
+
+train, test = train_test_split(df, random_state=41)
+Y_pred = naive_bayes_categorical(train, test.iloc[:,:-1].values, "diabetes")
+print(accuracy_score(y_test, Y_pred))
+
+
+
+Solution 2
+import numpy as np
+import pandas as pd
+df = pd.read_csv("/content/insurance.csv")
+df.head()
+
+cat_columns = ['sex','smoker','region']
+num_columns = ['age','bmi']
+
+from sklearn.preprocessing import LabelEncoder
+encoder = LabelEncoder()
+for col in cat_columns:
+    df[col] = encoder.fit_transform(df[col])
+
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+num_data = df[num_columns]
+num_data = scaler.fit_transform(df[num_columns])
+df[num_columns]= num_data
+
+scaler2 = StandardScaler()
+charges = np.array(df['charges']).reshape(-1,1)
+charges = scaler2.fit_transform(charges)
+
+df.head()
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(df.drop('charges',axis=1), charges, test_size=0.2)
+
+from sklearn.svm import SVR
+from sklearn.model_selection import RandomizedSearchCV
+import warnings
+warnings.filterwarnings('ignore')
+params_grid = {
+    'kernel':['linear','rbf','poly'],
+    'gamma':np.logspace(-3, 3, 6)
+}
+
+svr = SVR()
+svr_cv =RandomizedSearchCV(svr, params_grid, cv=3)
+svr_cv.fit(X_train,y_train)
+print(svr_cv.best_score_, svr_cv.best_params_)
+
+svr = SVR(kernel='poly', gamma=0.25)
+svr.fit(X_train,y_train)
+y_pred = svr.predict(X_test)
+y_pred= scaler2.inverse_transform(y_pred.reshape(-1,1))
+y_test =scaler2.inverse_transform(y_test)
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+print(mean_absolute_error(y_test,y_pred), mean_squared_error(y_test,y_pred))
+
+from sklearn.ensemble import AdaBoostRegressor
+adbr = AdaBoostRegressor()
+param_grid_adaboost = {
+     'n_estimators' : [20,40,50,60],
+     'loss': ['linear', 'square']
+}
+from sklearn.model_selection import GridSearchCV
+
+adbr_cv = GridSearchCV(adbr, param_grid_adaboost, cv=3)
+adbr_cv.fit(X_train,y_train)
+print(adbr_cv.best_estimator_ , adbr_cv.best_params_)
+
+adbr = AdaBoostRegressor(loss= 'linear', n_estimators=50)
+adbr.fit(X_train,y_train)
+y_pred = adbr.predict(X_test)
+y_pred= scaler2.inverse_transform(y_pred.reshape(-1,1))
+
+print(mean_absolute_error(y_test,y_pred), mean_squared_error(y_test,y_pred))
+
+from sklearn.ensemble import RandomForestRegressor
+rf = RandomForestRegressor()
+rf.fit(X_train, y_train)
+y_pred = rf.predict(X_test)
+y_pred= scaler2.inverse_transform(y_pred.reshape(-1,1))
+
+print(mean_absolute_error(y_test,y_pred), mean_squared_error(y_test,y_pred))
+
+from sklearn.ensemble import GradientBoostingRegressor
+gbr = GradientBoostingRegressor()
+gbr.fit(X_train,y_train)
+
+y_pred = gbr.predict(X_test)
+y_pred= scaler2.inverse_transform(y_pred.reshape(-1,1))
+
+print(mean_absolute_error(y_test,y_pred), mean_squared_error(y_test,y_pred))
+
+!pip install xgboost
+
+from xgboost import XGBRegressor
+bst = XGBRegressor()
+bst.fit(X_train, y_train)
+y_pred = bst.predict(X_test)
+
+y_pred= scaler2.inverse_transform(y_pred.reshape(-1,1))
+
+print(mean_absolute_error(y_test,y_pred), mean_squared_error(y_test,y_pred))
+
+
+
+Solution 3
+import numpy as np
+import pandas as pd
+df = pd.read_csv("/content/dataset.csv")
+df.head()
+
+df.info()
+
+X= df.drop(columns=['index','Result'])
+Y= df['Result']
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X,Y, test_size=0.2)
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import RandomizedSearchCV
+import warnings
+warnings.filterwarnings('ignore')
+
+params_grid = {
+    'criterion':['gini', 'entropy'],
+    'max_depth':[20,30,50]
+}
+
+dtree = DecisionTreeClassifier()
+dtree_cv =RandomizedSearchCV(dtree, params_grid, cv=3, scoring='accuracy')
+dtree_cv.fit(X_train,y_train)
+print(dtree_cv.best_score_, dtree_cv.best_params_)
+
+dtree = DecisionTreeClassifier(max_depth=20, criterion= 'entropy')
+dtree.fit(X_train,y_train)
+y_pred = dtree.predict(X_test)
+
+from sklearn.metrics import accuracy_score
+
+print(accuracy_score(y_test,y_pred))
+
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier()
+
+param_grid_rf = {
+    'criterion':['gini','entropy'],
+    'max_features':['sqrt', 'log2']
+}
+
+from sklearn.model_selection import GridSearchCV
+rf_cv = GridSearchCV(rf, param_grid_rf, cv=3)
+rf_cv.fit(X_train,y_train)
+print(rf_cv.best_estimator_ , rf_cv.best_params_)
+
+rfc = RandomForestClassifier(criterion='entropy', max_features='log2')
+rfc.fit(X_train,y_train)
+y_pred = rfc.predict(X_test)
+print(accuracy_score(y_test,y_pred))
+
+from sklearn.ensemble import AdaBoostClassifier
+adbc = AdaBoostClassifier()
+adbc.fit(X_train,y_train)
+y_pred = adbc.predict(X_test)
+
+print(accuracy_score(y_test,y_pred))
+
+from sklearn.ensemble import GradientBoostingClassifier
+gbc = GradientBoostingClassifier()
+gbc.fit(X_train,y_train)
+
+y_pred = gbc.predict(X_test)
+print(accuracy_score(y_test,y_pred))
+
+from xgboost import XGBClassifier
+bst = XGBClassifier()
+bst.fit(X_train, y_train)
+y_pred = bst.predict(X_test)
+print(accuracy_score(y_test,y_pred))
+
+
+
+Solution 4
+import numpy as np
+import pandas as pd
+
+data = pd.read_csv("segmentation data.csv")
+data.head()
+
+data= data.drop('ID',axis=1)
+
+data.info()
+
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+income = np.array(data['Income']).reshape(-1,1)
+income = scaler.fit_transform(income)
+data['Income'] = income
+data.head()
+
+def get_age_category(x):
+    ans= (x - (x%10))/10
+    return int(ans)
+
+data['Age']= data['Age'].apply(get_age_category)
+
+data.head()
+
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
+
+
+from sklearn.metrics import silhouette_score
+
+Sum_of_squared_distances = []
+Silhouette_scores = []
+for num_clusters in range(2,11):
+  kmeans = KMeans(n_clusters=num_clusters)
+  kmeans.fit(data)
+  Sum_of_squared_distances.append(kmeans.inertia_)
+  score = silhouette_score(data, kmeans.labels_)
+  Silhouette_scores.append(score)
+
+plt.figure(figsize=(14,6))
+plt.subplot(1,2,1)
+plt.plot(np.arange(2,11),Sum_of_squared_distances,marker='o')
+plt.xlabel('Values of K')
+plt.ylabel('Sum of squared distances/Inertia')
+plt.title('Elbow Method For Optimal k')
+
+plt.subplot(1,2,2)
+plt.plot(np.arange(2,11),Silhouette_scores,marker='o')
+plt.xlabel('Values of K')
+plt.ylabel('Silhouette_scores')
+plt.title('Silhouette Analysis For Optimal k')
+
+kmeans = KMeans(n_clusters=4)
+kmeans.fit(data)
+sklearn_kmeans_inertia = kmeans.inertia_
+sklearn_kmeans_labels = kmeans.labels_
+sklearn_kmeans_silhoutte_score = silhouette_score(data, kmeans.labels_)
+
+print(sklearn_kmeans_inertia,sklearn_kmeans_silhoutte_score)
+
+class KMeansScratch:
+    def __init__(self, k, max_iter=100):
+        self.k = k
+        self.max_iter = max_iter
+
+    def fit(self, X):
+        n_samples, n_features = X.shape
+
+        self.centroids = np.random.randn(self.k, n_features)
+
+        for i in range(self.max_iter):
+            distances = np.sqrt(((X - self.centroids[:, np.newaxis])**2).sum(axis=2))
+            labels = np.argmin(distances, axis=0)
+
+            centroids = np.array([X[labels == k].mean(axis=0) for k in range(self.k)])
+
+            if np.allclose(self.centroids, centroids):
+                break
+
+            self.centroids = centroids
+
+        self.labels_ = labels
+
+kmeans2 = KMeansScratch(k=3,max_iter=100)
+kmeans2.fit(np.array(data))
+scratch_kmeans_labels = kmeans2.labels_
+
+from sklearn.metrics import accuracy_score
+print(accuracy_score(sklearn_kmeans_labels,scratch_kmeans_labels))
+
+from sklearn.cluster import DBSCAN
+eps= [0.1,0.2,0.5,1,2]
+min_samples=[3,4,5,6]
+
+best_params = {'eps':0,'min_samples':0}
+best_score = 0
+for min_sample in min_samples:
+    for ep in eps:
+        dbscan = DBSCAN(eps=ep,min_samples=min_sample)
+        dbscan.fit(data)
+        if (len(np.unique(dbscan.labels_))==1):
+            continue
+        score = silhouette_score(data,dbscan.labels_)
+
+        if (score>best_score):
+            best_score=score
+            best_params['eps']=ep
+            best_params['min_samples']=min_sample
+
+print(best_params)
+print(best_score)
+
+
+import numpy as np
+
+class DBSCANScratch:
+    def __init__(self, eps=0.5, min_samples=5):
+        self.eps = eps
+        self.min_samples = min_samples
+
+    def fit(self, X):
+        # Initialize labels array
+        self.labels_ = np.zeros(X.shape[0])
+        cluster_label = 0
+
+        for i in range(X.shape[0]):
+            if self.labels_[i] != 0:
+                continue
+
+            neighbors = self.get_neighbors(X, i)
+            if len(neighbors) < self.min_samples:
+                self.labels_[i] = -1 # Mark as noise point
+                continue
+
+            cluster_label += 1
+            self.labels_[i] = cluster_label
+
+            # Expand cluster
+            j = 0
+            while j < len(neighbors):
+                neighbor = neighbors[j]
+
+                if self.labels_[neighbor] == -1:
+                    self.labels_[neighbor] = cluster_label
+
+                elif self.labels_[neighbor] == 0:
+                    self.labels_[neighbor] = cluster_label
+                    new_neighbors = self.get_neighbors(X, neighbor)
+
+                    if len(new_neighbors) >= self.min_samples:
+                        neighbors = np.concatenate((neighbors, new_neighbors))
+
+                j += 1
+
+        return self
+
+    def get_neighbors(self, X, i):
+        distances = np.linalg.norm(X - X[i], axis=1)
+        return np.where(distances <= self.eps)[0]
+
+dbscan2 = DBSCANScratch(eps=0.5,min_samples=3)
+dbscan2.fit(np.array(data))
+print(silhouette_score(data,dbscan2.labels_))

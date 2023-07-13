@@ -318,4 +318,5 @@ pred=clf.predict(x_test)
 from sklearn.metrics import accuracy_score
 accuracy_score(y_test,pred)
 
+
 plot_tree(clf,max_depth=5)
